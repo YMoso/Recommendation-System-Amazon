@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import pandas as pd
-import faiss
+#import pandas as pd
+#import faiss
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 #import myCode
@@ -38,12 +38,12 @@ def load_models():
 
 def svd_recommend(user_id: int, k: int):
     #here i will import your code
-    return #top_items.tolist()
+    return 0 #top_items.tolist()
 
 
 def embedding_recommend(user_id: int, k: int):
     # here i will import my code
-    return #indices[0].tolist()
+    return 1 #indices[0].tolist()
 
 
 def recommend_sync(user_id: int, num_user_products: int, k: int):
