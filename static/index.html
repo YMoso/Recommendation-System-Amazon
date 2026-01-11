@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Amazon Recommendation System</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="container">
+    <h1>Amazon Recommendation System</h1>
+
+    <div class="controls">
+        <input id="userId" placeholder="Enter user ID">
+
+        <button onclick="getRecommendations()">Recommend</button>
+        <button onclick="loadRandomUser('active')">Random Active User</button>
+        <button onclick="loadRandomUser('cold')">Random Cold User</button>
+    </div>
+
+    <div id="loading" class="loading">Loading...</div>
+
+    <div id="userStatus" class="status"></div>
+
+    <div id="recommendationsSection" class="section">
+        <h2>Recommendations</h2>
+        <div id="recommendationsList" class="grid"></div>
+    </div>
+
+    <div id="historySection" class="section">
+        <h2>User History</h2>
+        <div class="history-scroll-container">
+            <div id="historyList" class="grid history-scroll"></div>
+         </div>
+    </div>
+
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
