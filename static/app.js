@@ -55,7 +55,7 @@ function renderHistory(history) {
             <h3>${item.title}</h3>
             <div class="meta">
                 Category: ${item.category || "Unknown"}<br>
-                Rating: ⭐ ${item.rating}<br>
+                Rating: ${item.rating}<br>
                 ASIN: ${item.asin}
             </div>
         </div>
