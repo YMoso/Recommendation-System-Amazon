@@ -1,7 +1,7 @@
 from functools import lru_cache
 import pandas as pd
 
-from models import RecommendationItem, HistoryItem
+from files.models import RecommendationItem, HistoryItem
 from files.data_loader import data_store
 from CONFIG.config import Config
 

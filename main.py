@@ -6,6 +6,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from CONFIG.config import Config
+from files.models import (
+    RecommendRequest,
+    RecommendResponse,
+    UserStatusResponse,
+)
 from files.data_loader import data_store
 from files.recommenders import RecommenderEngine
 
