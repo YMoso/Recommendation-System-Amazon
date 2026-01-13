@@ -50,9 +50,22 @@ class RecommenderEngine:
     @staticmethod
     def recommend_embedding(user_id, k):
         #its just some example, you might to have to change it as you want to :)
-        return [
-            RecommendationItem(asin="1234",title="Embedding recommendation",category=None,
-                               score=5,model="embedding",)]
+        if user_id not in data_store.user_ids:
+            raise ValueError("User embedding not found")
+
+        idx = data_store.user_ids.index(user_id)
+        user_emb = data_store.user_index.reconstruct(idx).reshape(1, -1)
+
+        scores, indices = data_store.item_index.search(user_emb, k)
+
+        results = []
+        for score, idx in zip(scores[0], indices[0]):
+            row = meta.loc[idx]
+            results.append(
+                RecommendationItem(asin=idx, title=row["title"] if pd.notna(row["title"]) else "Unknown",category=row.get("main_category"),
+                                   score=float(score), model="embedding", )
+            )
+
 
 
     @staticmethod
