@@ -8,7 +8,7 @@ class Config:
     USER_STATS_PATH = os.path.join(DATA_DIR, "user_stats.parquet")
     ITEMS_META_PATH = os.path.join(DATA_DIR, "items_meta.parquet")
     CD_EMBEDDINGS_PATH = os.path.join(DATA_DIR, "cd_vinyl/embeddings_by_product_id")
-    MOVIES_EMBEDDINGS_PATH = os.path.join(DATA_DIR, "movies_tv/embeddings_by_product_id")
+    MOVIES_EMBEDDINGS_PATH = os.path.join(DATA_DIR, "digital_music/embeddings_by_product_id")
     SOFTWARE_EMBEDDINGS_PATH = os.path.join(DATA_DIR, "software/embeddings_by_product_id")
     GAMES_EMBEDDINGS_PATH = os.path.join(DATA_DIR, "video_games/embeddings_by_product_id")
     USER_EMBEDDINGS_PATH = os.path.join(DATA_DIR, "user_embeddings_lt20")
