@@ -1,98 +1,136 @@
-from functools import lru_cache
-import pandas as pd
-
+from typing import List
 from files.models import RecommendationItem, HistoryItem
 from files.data_loader import data_store
-from CONFIG.config import Config
-
+import numpy as np
 
 class RecommenderEngine:
     @staticmethod
-    def get_user_history(user_id, limit= 100):
-        _user = data_store.interactions_df[data_store.interactions_df["user_id"] == user_id]
-        rows = (_user.head(limit))
-        if rows.empty:
+    def get_user_history(user_id: str, limit= 100):
+        df = data_store.interactions_df
+
+        user_df = df[df["user_id"] == user_id]
+
+        if user_df.empty:
             return []
-        merged = rows.merge(data_store.items_meta_df, on="parent_asin", how="left")
 
-        return [HistoryItem(asin=row["parent_asin"],title=row["title"] if pd.notna(row["title"]) else "Unknown",
-                            rating=row["rating"], category=row.get("main_category") if pd.notna(row.get("main_category"))
-            else None) for _, row in merged.iterrows()]
+        for col in ["timestamp", "unix_review_time", "review_time"]:
+            if col in user_df.columns:
+                user_df = user_df.sort_values(col, ascending=False)
+                break
 
-    @staticmethod
-    @lru_cache(maxsize=Config.CACHE_SIZE)
-    def recommend_hybrid_cf(user_id, k):
-        rated = set(data_store.interactions_df[data_store.interactions_df["user_id"] == user_id]["parent_asin"])
-        weights = Config.HYBRID_WEIGHTS
-        scores = []
-        meta = data_store.items_meta_df.set_index("parent_asin")
-        for asin in meta.index:
-            if asin in rated:
-                continue
-            try:
-                s1 = data_store.best_svd.predict(user_id, asin).est
-                s2 = data_store.svdpp.predict(user_id, asin).est
-                s3 = data_store.knn.predict(user_id, asin).est
-            except Exception:
-                continue
-            score = (weights["svd"] * s1+ weights["svdpp"] * s2+ weights["knn"] * s3)
-            scores.append((asin, score))
-        top = sorted(scores, key=lambda x: x[1], reverse=True)[:k]
+        user_df = user_df.head(limit)
 
-        results = []
-        for asin, score in top:
-            row = meta.loc[asin]
-            results.append(
-                RecommendationItem(asin=asin, title=row["title"] if pd.notna(row["title"]) else "Unknown",category=row.get("main_category"),
-                                   score=float(score), model="hybrid_cf"))
-        return tuple(results)
+        history = []
 
-    @staticmethod
-    def recommend_embedding(user_id, k):
-        #its just some example, you might to have to change it as you want to :)
-        if user_id not in data_store.user_ids:
-            raise ValueError("User embedding not found")
+        for _, row in user_df.iterrows():
+            asin = row["parent_asin"]
 
-        idx = data_store.user_ids.index(user_id)
-        user_emb = data_store.user_index.reconstruct(idx).reshape(1, -1)
+            if asin in data_store.meta_lookup.index:
+                meta = data_store.meta_lookup.loc[asin]
+                title = meta.get("title", "Unknown")
+                category = meta.get("category")
+            else:
+                title = "Unknown"
+                category = None
 
-        scores, indices = data_store.item_index.search(user_emb, k)
-
-        results = []
-        for score, idx in zip(scores[0], indices[0]):
-            row = meta.loc[idx]
-            results.append(
-                RecommendationItem(asin=idx, title=row["title"] if pd.notna(row["title"]) else "Unknown",category=row.get("main_category"),
-                                   score=float(score), model="embedding", )
+            history.append(
+                HistoryItem(
+                    asin=asin,
+                    title=title,
+                    rating=float(row.get("rating", 0)),
+                    category=category
+                )
             )
 
-
-
-    @staticmethod
-    def recommend_popular(k):
-        meta = data_store.items_meta_df.set_index("parent_asin")
-
-        top = (data_store.interactions_df.groupby("parent_asin").agg(avg_rating=("rating", "mean"),
-                cnt=("rating", "count")).query(f"cnt >= {Config.POPULAR_MIN_COUNT}").sort_values("avg_rating", ascending=False).head(k))
-
-        results = []
-        for asin, row in top.iterrows():
-            meta_row = meta.loc[asin] if asin in meta.index else None
-
-            results.append(
-                RecommendationItem(asin=asin,title=meta_row["title"] if meta_row is not None else "Unknown",
-                                   category=meta_row.get("main_category") if meta_row is not None
-                    else None,score=float(row["avg_rating"]),model="popular",))
-
-        return results
+        return history
 
     @staticmethod
-    def get_recommendations(user_id, k):
-        if data_store.is_cf_eligible(user_id):
-            return list(RecommenderEngine.recommend_hybrid_cf(user_id, k))
-        else:
-            recs = RecommenderEngine.recommend_embedding(user_id, k)
-            if recs:
-                return recs
+    def recommend_cf(user_id: str, k: int) -> List[RecommendationItem]:
+        rated = set(
+            data_store.interactions_df[
+                data_store.interactions_df["user_id"] == user_id
+            ]["parent_asin"]
+        )
+
+        scores = []
+        for asin in data_store.items_meta_df["parent_asin"].unique():
+            if asin in rated:
+                continue
+
+            score = (
+                data_store.best_svd.predict(user_id, asin).est +
+                data_store.svdpp.predict(user_id, asin).est +
+                data_store.knn.predict(user_id, asin).est
+            ) / 3.0
+
+            scores.append((asin, score))
+
+        top = sorted(scores, key=lambda x: x[1], reverse=True)[:k]
+
+        return [
+            RecommendationItem(
+                asin=a,
+                title=data_store.meta_lookup.loc[a]["title"],
+                score=float(s),
+                model="hybrid_cf",
+                category=data_store.meta_lookup.loc[a].get("category")
+            )
+            for a, s in top
+        ]
+
+    @staticmethod
+    def recommend_cold_start(k: int = 5):
+        nn = data_store.nn
+        embeddings = data_store.embeddings
+        idx_to_item = data_store.idx_to_item_id
+        meta = data_store.meta_lookup
+
+        if nn is None or embeddings is None:
+            return []
+
+        seed_idx = np.random.randint(0, embeddings.shape[0])
+        seed_vec = embeddings[seed_idx].reshape(1, -1)
+
+        distances, indices = nn.kneighbors(
+            seed_vec,
+            n_neighbors=min(k + 1, embeddings.shape[0])
+        )
+
+        recommendations = []
+
+        for dist, idx in zip(distances[0], indices[0]):
+            if idx == seed_idx:
+                continue
+
+            asin = idx_to_item[idx]
+            similarity = round(1.0 - float(dist), 3)
+
+            if asin in meta.index:
+                row = meta.loc[asin]
+                title = row.get("title", "Unknown")
+                category = row.get("category")
             else:
-                return RecommenderEngine.recommend_popular(k)
+                title = "Unknown"
+                category = None
+
+            recommendations.append(
+                RecommendationItem(
+                    asin=asin,
+                    title=title,
+                    score=similarity,
+                    model="cold_start",
+                    category=category
+                )
+            )
+
+            if len(recommendations) >= k:
+                break
+
+        return recommendations
+
+    @staticmethod
+    def get_recommendations(user_id: str, k: int):
+        if data_store.is_cf_eligible(user_id):
+            return RecommenderEngine.recommend_cf(user_id, k)
+        else:
+            return RecommenderEngine.recommend_cold_start(k)
